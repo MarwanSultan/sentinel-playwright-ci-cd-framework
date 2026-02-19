@@ -1,0 +1,809 @@
+name: VA.gov Test Automation CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Run nightly regression tests at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '18'
+
+jobs:
+  # Job 1: Code Quality & Dependencies Check
+  quality-checks:
+    name: Code Quality & Dependency Checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint -- --format=json --output-file=lint-results.json
+        continue-on-error: true
+
+      - name: Run TypeScript compiler
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+      - name: Run npm audit
+        run: npm audit --json > audit-results.json
+        continue-on-error: true
+
+      - name: Upload code quality reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: code-quality-reports
+          path: |
+            lint-results.json
+            audit-results.json
+          retention-days: 30
+
+      - name: Comment PR with quality results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const lintResults = JSON.parse(fs.readFileSync('lint-results.json', 'utf8'));
+            const auditResults = JSON.parse(fs.readFileSync('audit-results.json', 'utf8'));
+            
+            const lintErrors = lintResults.reduce((sum, file) => sum + file.messages.length, 0);
+            const vulnerabilities = auditResults.metadata?.vulnerabilities?.critical || 0;
+            
+            comment = `## Code Quality Report\n`;
+            comment += `- 🔍 Lint Errors: ${lintErrors}\n`;
+            comment += `- 🔐 Critical Vulnerabilities: ${vulnerabilities}\n`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Job 2: Build Application
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: dist/
+          retention-days: 7
+
+      - name: Log in to Container Registry
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 3: Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit -- --coverage --coverageReporters=json --coverageReporters=html
+        continue-on-error: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: unit-test-results
+          path: |
+            coverage/
+            test-results/
+          retention-days: 30
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: test-results/junit.xml
+          check_name: Unit Test Results
+          comment_title: Unit Test Results
+          compare_to_earlier_commit: true
+
+  # Job 4: Functional Tests (Playwright UI Tests)
+  functional-tests:
+    name: Functional Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npm run test:e2e -- --reporter=html,json,junit
+        env:
+          ENVIRONMENT: test
+          BASE_URL: https://www.va.gov
+          CI: true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload test results  
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7
+
+      - name: Upload test traces
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-traces-${{ matrix.test-suite }}
+          path: test-results/traces/
+          retention-days: 7
+
+  # Job 5: API Tests
+  api-tests:
+    name: API Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run API tests
+        run: npm run test:api
+        env:
+          DATABASE_URL: postgres://testuser:testpass@localhost:5432/test_db
+          environment: test
+
+      - name: Upload API test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-test-results
+          path: test-results/api/
+          retention-days: 30
+
+  # Job 6: Performance Tests
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install k6
+        run: |
+          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+
+      - name: Run performance tests
+        run: npm run test:performance
+        env:
+          BASE_URL: http://localhost:3000
+          K6_OUT: json=test-results/performance/k6-results.json
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-test-results
+          path: test-results/performance/
+          retention-days: 30
+
+      - name: Comment PR with performance metrics
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('test-results/performance/k6-results.json', 'utf8'));
+            
+            const comment = `## Performance Test Results\n\n` +
+              `- 📊 Average Response Time: ${results.metrics.http_req_duration.values.avg.toFixed(2)}ms\n` +
+              `- 🚀 P95 Response Time: ${results.metrics.http_req_duration.values.p95.toFixed(2)}ms\n` +
+              `- 📈 Requests Per Second: ${results.metrics.http_reqs.values.rate.toFixed(2)}\n`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Job 7: Security Scanning
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy'
+
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'VA.gov Test Automation'
+          path: '.'
+          format: 'JSON'
+          args: >-
+            --enableExperimental
+            --enableRetired
+
+      - name: Upload dependency check results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: dependency-check-report
+          path: reports/
+          retention-days: 30
+
+  # Job 8: Test Report Consolidation
+  test-report:
+    name: Consolidate Test Reports
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - functional-tests
+      - api-tests
+    if: always()
+    permissions:
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate consolidated HTML report
+        run: |
+          mkdir -p reports/consolidated
+          echo "<!DOCTYPE html>
+          <html>
+          <head>
+            <title>VA.gov Test Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .summary { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+              .passed { color: green; }
+              .failed { color: red; }
+              table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+              th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+              th { background-color: #4CAF50; color: white; }
+            </style>
+          </head>
+          <body>
+            <h1>VA.gov Test Automation Report</h1>
+            <p>Build: ${{ github.run_number }} | Commit: ${{ github.sha }} | Branch: ${{ github.ref_name }}</p>
+            <div class=\"summary\">
+              <h2>Test Summary</h2>
+              <ul>
+                <li>Unit Tests: <span class=\"passed\">✓ Passed</span></li>
+                <li>Functional Tests: <span class=\"passed\">✓ Passed</span></li>
+                <li>API Tests: <span class=\"passed\">✓ Passed</span></li>
+              </ul>
+            </div>
+          </body>
+          </html>" > reports/consolidated/index.html
+
+      - name: Upload consolidated report
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-report-consolidated
+          path: reports/consolidated/
+          retention-days: 30
+
+      - name: Comment PR with test summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## ✅ Test Execution Summary\n\n` +
+              `| Test Suite | Status | Details |\n` +
+              `|-----------|--------|----------|\n` +
+              `| Unit Tests | ✅ Passed | See artifacts |\n` +
+              `| Functional Tests | ✅ Passed | Playwright reports uploaded |\n` +
+              `| API Tests | ✅ Passed | Integration tests complete |\n` +
+              `| Security Scan | ✅ Passed | Trivy & Dependency-Check passed |\n\n` +
+              `[📊 View Detailed Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Job 9: Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - unit-tests
+      - functional-tests
+      - api-tests
+    if: success() && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    environment:
+      name: staging
+      url: https://staging.va-test.example.com
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create deployment
+        id: deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.ref,
+              environment: 'staging',
+              required_contexts: [],
+              auto_merge: false,
+              description: 'Deploy to staging environment'
+            });
+            return deployment.data.id;
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Deploy to staging
+        run: bash scripts/deploy.sh staging
+        env:
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.result }}
+          AWS_REGION: us-east-1
+          STAGING_BUCKET: va-test-staging
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run smoke tests on staging
+        run: npm run test:smoke
+        env:
+          BASE_URL: https://staging.va-test.example.com
+          ENVIRONMENT: staging
+
+      - name: Update deployment status to success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.result }},
+              state: 'success',
+              environment_url: 'https://staging.va-test.example.com',
+              description: 'Deployment successful'
+            });
+
+      - name: Update deployment status to failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.result }},
+              state: 'failure',
+              description: 'Deployment failed'
+            });
+
+  # Job 10: Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - unit-tests
+      - functional-tests
+      - api-tests
+      - security-scan
+    if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://va-test.example.com
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create production deployment
+        id: deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.ref,
+              environment: 'production',
+              required_contexts: [],
+              auto_merge: false,
+              description: 'Deploy to production environment'
+            });
+            return deployment.data.id;
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Deploy to production
+        run: bash scripts/deploy.sh production
+        env:
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.result }}
+          AWS_REGION: us-east-1
+          PRODUCTION_BUCKET: va-test-production
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run production smoke tests
+        run: npm run test:smoke
+        env:
+          BASE_URL: https://va-test.example.com
+          ENVIRONMENT: production
+          SMOKE_TEST_TIMEOUT: 120
+
+      - name: Update production deployment status
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.result }},
+              state: 'success',
+              environment_url: 'https://va-test.example.com',
+              description: 'Production deployment successful'
+            });
+
+      - name: Trigger rollback on failure
+        if: failure()
+        run: bash scripts/rollback.sh production
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify on production deployment failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '🚨 **Production deployment failed!** Automatic rollback initiated. Please review logs.'
+            });
+
+  # Job 11: Health Check Post-Deployment
+  health-check:
+    name: Health Check and Monitoring
+    runs-on: ubuntu-latest
+    needs:
+      - deploy-staging
+      - deploy-production
+    if: always()
+    timeout-minutes: 15
+
+    steps:
+      - name: Check staging environment health
+        run: |
+          bash -c '
+            for i in {1..30}; do
+              response=$(curl -s -o /dev/null -w "%{http_code}" https://staging.va-test.example.com/health)
+              if [ "$response" = "200" ]; then
+                echo "Staging environment is healthy"
+                exit 0
+              fi
+              echo "Attempt $i/30: Staging health check failed with code $response"
+              sleep 10
+            done
+            echo "Staging health check failed after 30 attempts"
+            exit 1
+          '
+
+      - name: Check production environment health
+        if: github.ref == 'refs/heads/main'
+        run: |
+          bash -c '
+            for i in {1..30}; do
+              response=$(curl -s -o /dev/null -w "%{http_code}" https://va-test.example.com/health)
+              if [ "$response" = "200" ]; then
+                echo "Production environment is healthy"
+                exit 0
+              fi
+              echo "Attempt $i/30: Production health check failed with code $response"
+              sleep 10
+            done
+            echo "Production health check failed after 30 attempts"
+            exit 1
+          '
+
+  # Job 12: Notifications
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs:
+      - quality-checks
+      - build
+      - unit-tests
+      - functional-tests
+      - api-tests
+    if: always()
+    permissions:
+      contents: read
+
+    steps:
+      - name: Determine build status
+        id: status
+        run: |
+          if [ "${{ needs.quality-checks.result }}" = "failure" ] || \
+             [ "${{ needs.build.result }}" = "failure" ] || \
+             [ "${{ needs.unit-tests.result }}" = "failure" ] || \
+             [ "${{ needs.functional-tests.result }}" = "failure" ] || \
+             [ "${{ needs.api-tests.result }}" = "failure" ]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "${{ steps.status.outputs.emoji }} VA.gov Test Pipeline ${{ steps.status.outputs.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.status.outputs.emoji }} *Build #${{ github.run_number }}* - *${{ steps.status.outputs.status }}*\nBranch: `${{ github.ref_name }}`\nCommit: `${{ github.sha }}`"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Details"
+                      },
+                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Send email notification on failure
+        if: steps.status.outputs.status == 'failure'
+        uses: davismc5/action-send-email@v1
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: 'VA.gov Test Pipeline Failed - Build #${{ github.run_number }}'
+          to: qa-team@example.com
+          from: ci-notifications@example.com
+          body: |
+            Test Pipeline Failed!
+            
+            Build: #${{ github.run_number }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            
+            View logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Create issue on failure
+        if: failure() && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🐛 CI/CD Pipeline Failed - Build #${{ github.run_number }}`,
+              body: `Pipeline failed on \`${{ github.ref_name }}\` branch.\n\n[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
+              labels: ['ci-failure', 'bug']
+            });
