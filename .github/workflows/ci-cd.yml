@@ -1,11 +1,7 @@
 name: VA.gov Test Automation CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - 'release/**'
+  push:  # run on every push (all branches)
   pull_request:
     branches:
       - main
@@ -777,7 +773,7 @@ jobs:
 
       - name: Send email notification on failure
         if: steps.status.outputs.status == 'failure'
-        uses: davismc5/action-send-email@v1
+        uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
@@ -788,11 +784,11 @@ jobs:
           from: ci-notifications@example.com
           body: |
             Test Pipeline Failed!
-            
+
             Build: #${{ github.run_number }}
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-            
+
             View logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Create issue on failure
