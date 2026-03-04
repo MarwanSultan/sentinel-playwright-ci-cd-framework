@@ -738,38 +738,7 @@ jobs:
             echo "emoji=✅" >> $GITHUB_OUTPUT
           fi
 
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": "${{ steps.status.outputs.emoji }} VA.gov Test Pipeline ${{ steps.status.outputs.status }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ steps.status.outputs.emoji }} *Build #${{ github.run_number }}* - *${{ steps.status.outputs.status }}*\nBranch: `${{ github.ref_name }}`\nCommit: `${{ github.sha }}`"
-                  }
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "View Details"
-                      },
-                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    }
-                  ]
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      # Slack notification disabled per request — step removed
 
       - name: Send email notification on failure
         if: steps.status.outputs.status == 'failure'
