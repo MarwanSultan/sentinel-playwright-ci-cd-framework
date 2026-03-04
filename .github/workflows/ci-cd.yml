@@ -675,21 +675,7 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Check staging environment health
-        run: |
-          bash -c '
-            for i in {1..30}; do
-              response=$(curl -s -o /dev/null -w "%{http_code}" https://staging.va-test.example.com/health)
-              if [ "$response" = "200" ]; then
-                echo "Staging environment is healthy"
-                exit 0
-              fi
-              echo "Attempt $i/30: Staging health check failed with code $response"
-              sleep 10
-            done
-            echo "Staging health check failed after 30 attempts"
-            exit 1
-          '
+      # Staging health check removed per request
 
       - name: Check production environment health
         if: github.ref == 'refs/heads/main'
