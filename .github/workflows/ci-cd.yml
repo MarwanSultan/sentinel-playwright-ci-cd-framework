@@ -1,11 +1,7 @@
 name: VA.gov Test Automation CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - 'release/**'
+  push:  # run on every push (all branches)
   pull_request:
     branches:
       - main
@@ -56,7 +52,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload code quality reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: code-quality-reports
@@ -116,7 +112,7 @@ jobs:
           NODE_ENV: production
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: dist/
@@ -187,7 +183,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
           path: |
@@ -236,7 +232,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
@@ -244,7 +240,7 @@ jobs:
 
       - name: Upload test results  
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results
           path: test-results/
@@ -252,7 +248,7 @@ jobs:
 
       - name: Upload test traces
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-traces-${{ matrix.test-suite }}
           path: test-results/traces/
@@ -301,7 +297,7 @@ jobs:
 
       - name: Upload API test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: api-test-results
           path: test-results/api/
@@ -343,7 +339,7 @@ jobs:
 
       - name: Upload performance results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: performance-test-results
           path: test-results/performance/
@@ -410,7 +406,7 @@ jobs:
             --enableRetired
 
       - name: Upload dependency check results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: dependency-check-report
@@ -466,7 +462,7 @@ jobs:
           </html>" > reports/consolidated/index.html
 
       - name: Upload consolidated report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-report-consolidated
           path: reports/consolidated/
@@ -742,42 +738,11 @@ jobs:
             echo "emoji=✅" >> $GITHUB_OUTPUT
           fi
 
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": "${{ steps.status.outputs.emoji }} VA.gov Test Pipeline ${{ steps.status.outputs.status }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "${{ steps.status.outputs.emoji }} *Build #${{ github.run_number }}* - *${{ steps.status.outputs.status }}*\nBranch: `${{ github.ref_name }}`\nCommit: `${{ github.sha }}`"
-                  }
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "View Details"
-                      },
-                      "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    }
-                  ]
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+      # Slack notification disabled per request — step removed
 
       - name: Send email notification on failure
         if: steps.status.outputs.status == 'failure'
-        uses: davismc5/action-send-email@v1
+        uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
@@ -788,11 +753,11 @@ jobs:
           from: ci-notifications@example.com
           body: |
             Test Pipeline Failed!
-            
+
             Build: #${{ github.run_number }}
             Branch: ${{ github.ref_name }}
             Commit: ${{ github.sha }}
-            
+
             View logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Create issue on failure
