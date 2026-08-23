@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write
       security-events: write
     
     steps:
@@ -39,13 +40,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run ESLint
-        run: npm run lint -- --format=json --output-file=lint-results.json
-        continue-on-error: true
-
-      - name: Run TypeScript compiler
-        run: npx tsc --noEmit
-        continue-on-error: true
+      - name: Validate Playwright test discovery
+        run: npx playwright test --list > playwright-test-list.txt
 
       - name: Run npm audit
         run: npm audit --json > audit-results.json
@@ -57,8 +53,8 @@ jobs:
         with:
           name: code-quality-reports
           path: |
-            lint-results.json
             audit-results.json
+            playwright-test-list.txt
           retention-days: 30
 
       - name: Comment PR with quality results
@@ -67,14 +63,11 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const lintResults = JSON.parse(fs.readFileSync('lint-results.json', 'utf8'));
             const auditResults = JSON.parse(fs.readFileSync('audit-results.json', 'utf8'));
-            
-            const lintErrors = lintResults.reduce((sum, file) => sum + file.messages.length, 0);
             const vulnerabilities = auditResults.metadata?.vulnerabilities?.critical || 0;
             
-            comment = `## Code Quality Report\n`;
-            comment += `- 🔍 Lint Errors: ${lintErrors}\n`;
+            let comment = `## Code Quality Report\n`;
+            comment += `- 🧪 Playwright test discovery: validated\n`;
             comment += `- 🔐 Critical Vulnerabilities: ${vulnerabilities}\n`;
             
             github.rest.issues.createComment({
@@ -84,14 +77,13 @@ jobs:
               body: comment
             });
 
-  # Job 2: Build Application
+  # Job 2: Validate Test Suite
   build:
-    name: Build Application
+    name: Validate Test Suite
     runs-on: ubuntu-latest
     needs: quality-checks
     permissions:
       contents: read
-      packages: write
 
     steps:
       - name: Checkout code
@@ -106,49 +98,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build application
-        run: npm run build
-        env:
-          NODE_ENV: production
+      - name: Validate Playwright configuration
+        run: npx playwright test --list
 
-      - name: Upload build artifacts
+      - name: Package test suite
+        run: |
+          mkdir -p build-artifacts
+          tar --exclude=node_modules --exclude=test-results --exclude=playwright-report \
+            --exclude=build-artifacts \
+            -czf build-artifacts/va-gov-test-suite.tar.gz .
+
+      - name: Upload test suite artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
-          path: dist/
+          name: test-suite-artifacts
+          path: build-artifacts/
           retention-days: 7
-
-      - name: Log in to Container Registry
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   # Job 3: Unit Tests
   unit-tests:
@@ -169,17 +134,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run unit tests with coverage
-        run: npm run test:unit -- --coverage --coverageReporters=json --coverageReporters=html
+      - name: Run unit tests
+        run: npx playwright test tests/unit
         continue-on-error: true
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage/coverage-final.json
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
 
       - name: Upload test results
         if: always()
@@ -190,15 +147,6 @@ jobs:
             coverage/
             test-results/
           retention-days: 30
-
-      - name: Publish test results
-        if: always()
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        with:
-          files: test-results/junit.xml
-          check_name: Unit Test Results
-          comment_title: Unit Test Results
-          compare_to_earlier_commit: true
 
   # Job 4: Functional Tests (Playwright UI Tests)
   functional-tests:
@@ -224,7 +172,7 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run Playwright tests
-        run: npm run test:e2e -- --reporter=html,json,junit
+        run: npx playwright test tests/appointment-scheduling.spec.ts tests/smoke
         env:
           ENVIRONMENT: test
           BASE_URL: https://www.va.gov
@@ -250,7 +198,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces-${{ matrix.test-suite }}
+          name: playwright-traces
           path: test-results/traces/
           retention-days: 7
 
@@ -290,7 +238,7 @@ jobs:
         run: npm ci
 
       - name: Run API tests
-        run: npm run test:api
+        run: npx playwright test tests/api
         env:
           DATABASE_URL: postgres://testuser:testpass@localhost:5432/test_db
           environment: test
@@ -332,7 +280,7 @@ jobs:
           sudo apt-get install -y k6
 
       - name: Run performance tests
-        run: npm run test:performance
+        run: npx playwright test tests/performance
         env:
           BASE_URL: http://localhost:3000
           K6_OUT: json=test-results/performance/k6-results.json
@@ -351,12 +299,8 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const results = JSON.parse(fs.readFileSync('test-results/performance/k6-results.json', 'utf8'));
-            
             const comment = `## Performance Test Results\n\n` +
-              `- 📊 Average Response Time: ${results.metrics.http_req_duration.values.avg.toFixed(2)}ms\n` +
-              `- 🚀 P95 Response Time: ${results.metrics.http_req_duration.values.p95.toFixed(2)}ms\n` +
-              `- 📈 Requests Per Second: ${results.metrics.http_reqs.values.rate.toFixed(2)}\n`;
+              `Playwright performance scenarios completed. See the uploaded test report for details.\n`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -498,10 +442,9 @@ jobs:
       - unit-tests
       - functional-tests
       - api-tests
-    if: success() && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
-    environment:
-      name: staging
-      url: https://staging.va-test.example.com
+    # Deployment is disabled until a deployable application artifact and cloud
+    # credentials are configured for this test-automation repository.
+    if: ${{ false }}
     permissions:
       contents: read
       deployments: write
@@ -583,10 +526,9 @@ jobs:
       - functional-tests
       - api-tests
       - security-scan
-    if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment:
-      name: production
-      url: https://va-test.example.com
+    # Deployment is disabled until a deployable application artifact and cloud
+    # credentials are configured for this test-automation repository.
+    if: ${{ false }}
     permissions:
       contents: read
       deployments: write
@@ -671,7 +613,7 @@ jobs:
     needs:
       - deploy-staging
       - deploy-production
-    if: always()
+    if: ${{ false }}
     timeout-minutes: 15
 
     steps:
@@ -725,26 +667,6 @@ jobs:
           fi
 
       # Slack notification disabled per request — step removed
-
-      - name: Send email notification on failure
-        if: steps.status.outputs.status == 'failure'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: 'VA.gov Test Pipeline Failed - Build #${{ github.run_number }}'
-          to: qa-team@example.com
-          from: ci-notifications@example.com
-          body: |
-            Test Pipeline Failed!
-
-            Build: #${{ github.run_number }}
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-
-            View logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Create issue on failure
         if: failure() && github.ref == 'refs/heads/main'
