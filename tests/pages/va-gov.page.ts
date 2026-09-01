@@ -1,4 +1,4 @@
-import { Page, expect } from "@playwright/test";
+import { Page, expect } from '@playwright/test';
 
 /**
  * VA.gov Page Object Model
@@ -7,19 +7,19 @@ import { Page, expect } from "@playwright/test";
 
 export class VAGovPage {
   readonly page: Page;
-  readonly baseURL = "https://www.va.gov";
+  readonly baseURL = 'https://www.va.gov';
 
   // Locators defined as getters
   get header() {
-    return this.page.locator("header");
+    return this.page.locator('header');
   }
 
   get mainNav() {
-    return this.page.locator("nav");
+    return this.page.locator('nav');
   }
 
   get mainContent() {
-    return this.page.locator("main");
+    return this.page.locator('main');
   }
 
   get searchInput() {
@@ -27,7 +27,7 @@ export class VAGovPage {
   }
 
   get footer() {
-    return this.page.locator("footer");
+    return this.page.locator('footer');
   }
 
   constructor(page: Page) {
@@ -38,11 +38,11 @@ export class VAGovPage {
    * Navigate to VA.gov homepage
    */
   async goto(path?: string) {
-    await this.page.goto("https://www.va.gov");
+    await this.page.goto('https://www.va.gov');
     if (path) {
       await this.page.goto(`${this.baseURL}${path}`);
     }
-    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForLoadState('networkidle');
   }
 
   /**
@@ -56,28 +56,28 @@ export class VAGovPage {
    * Navigate to Benefits page
    */
   async goToBenefits() {
-    await this.goto("/benefits");
+    await this.goto('/benefits');
   }
 
   /**
    * Navigate to Health Care page
    */
   async goToHealthCare() {
-    await this.goto("/health-care");
+    await this.goto('/health-care');
   }
 
   /**
    * Navigate to Disability page
    */
   async goToDisability() {
-    await this.goto("/disability");
+    await this.goto('/disability');
   }
 
   /**
    * Navigate to Records page
    */
   async goToRecords() {
-    await this.goto("/records");
+    await this.goto('/records');
   }
 
   /**
@@ -85,15 +85,15 @@ export class VAGovPage {
    */
   async search(query: string) {
     await this.searchInput.fill(query);
-    await this.page.keyboard.press("Enter");
-    await this.page.waitForLoadState("networkidle");
+    await this.page.keyboard.press('Enter');
+    await this.page.waitForLoadState('networkidle');
   }
 
   /**
    * Click on a main navigation link
    */
   async clickNavLink(label: string | RegExp) {
-    await this.page.getByRole("link", { name: label }).first().click();
+    await this.page.getByRole('link', { name: label }).first().click();
   }
 
   /**
@@ -107,8 +107,8 @@ export class VAGovPage {
    * Wait for page to be fully loaded
    */
   async waitForPageLoad() {
-    await this.page.waitForLoadState("domcontentloaded");
-    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForLoadState('domcontentloaded');
+    await this.page.waitForLoadState('networkidle');
   }
 
   /**
@@ -122,7 +122,7 @@ export class VAGovPage {
    * Verify HTTPS connection
    */
   isSecure(): boolean {
-    return this.page.url().startsWith("https://");
+    return this.page.url().startsWith('https://');
   }
 
   /**
@@ -160,8 +160,8 @@ export class BenefitsPage extends VAGovPage {
     await this.goToBenefits();
 
     // Find and click the benefit link
-    const benefitLink = this.page.getByRole("link", {
-      name: new RegExp(benefitType, "i"),
+    const benefitLink = this.page.getByRole('link', {
+      name: new RegExp(benefitType, 'i'),
     });
 
     await benefitLink.click();
@@ -176,7 +176,7 @@ export class HealthCarePage extends VAGovPage {
     await this.goToHealthCare();
 
     // Look for appointment scheduling link
-    const appointmentLink = this.page.getByRole("link", {
+    const appointmentLink = this.page.getByRole('link', {
       name: /schedule|appointment/i,
     });
 
@@ -200,7 +200,7 @@ export class ClaimsPage extends VAGovPage {
     await this.verifyPageIsAccessible();
   }
 
-  async viewClaimDetails(claimId: string) {
+  async viewClaimDetails(_claimId: string) {
     // This would typically require login and claim access
     // For now, just navigate to claims page
     await this.goToDisability();
@@ -224,11 +224,9 @@ export class AccessibilityChecker {
     hasAltText: boolean;
     hasAriaLabels: boolean;
   }> {
-    const h1Count = await this.page.locator("h1").count();
-    const imagesWithoutAlt = await this.page.locator("img:not([alt])").count();
-    const elementsWithAriaLabel = await this.page
-      .locator("[aria-label]")
-      .count();
+    const h1Count = await this.page.locator('h1').count();
+    const imagesWithoutAlt = await this.page.locator('img:not([alt])').count();
+    const elementsWithAriaLabel = await this.page.locator('[aria-label]').count();
 
     return {
       hasH1: h1Count > 0,
@@ -244,15 +242,13 @@ export class AccessibilityChecker {
     const issues: string[] = [];
 
     // Check for empty buttons
-    const emptyButtons = await this.page
-      .locator("button:not(:has(*, :contains(text())))")
-      .count();
+    const emptyButtons = await this.page.locator('button:not(:has(*, :contains(text())))').count();
     if (emptyButtons > 0) {
       issues.push(`Found ${emptyButtons} buttons without visible text`);
     }
 
     // Check for images without alt text
-    const imagesWithoutAlt = await this.page.locator("img:not([alt])").count();
+    const imagesWithoutAlt = await this.page.locator('img:not([alt])').count();
     if (imagesWithoutAlt > 0) {
       issues.push(`Found ${imagesWithoutAlt} images without alt text`);
     }
@@ -272,8 +268,8 @@ export class PerformanceChecker {
    */
   async getLoadTime(): Promise<number> {
     const navigationTiming = await this.page.evaluate(() => {
-      const timing = performance.getEntriesByType("navigation")[0] as any;
-      return timing?.loadEventEnd - timing?.fetchStart || 0;
+      const timing = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+      return timing ? timing.loadEventEnd - timing.fetchStart : 0;
     });
 
     return navigationTiming;
@@ -284,8 +280,8 @@ export class PerformanceChecker {
    */
   async getFirstPaintTime(): Promise<number> {
     const paintTiming = await this.page.evaluate(() => {
-      const entries = performance.getEntriesByType("paint");
-      const firstPaint = entries.find((entry) => entry.name === "first-paint");
+      const entries = performance.getEntriesByType('paint');
+      const firstPaint = entries.find((entry) => entry.name === 'first-paint');
       return firstPaint?.startTime || 0;
     });
 
@@ -304,7 +300,7 @@ export class PerformanceChecker {
             const lastEntry = entries.at(-1);
             resolve(lastEntry?.startTime || 0);
           });
-          observer.observe({ entryTypes: ["largest-contentful-paint"] });
+          observer.observe({ entryTypes: ['largest-contentful-paint'] });
 
           // Timeout after 5 seconds
           setTimeout(() => resolve(0), 5000);

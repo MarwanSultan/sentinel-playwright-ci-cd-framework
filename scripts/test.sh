@@ -156,10 +156,10 @@ run_e2e_tests() {
     
     # Run all Playwright tests using npm script
     if npm run test:e2e -- --reporter=html,json,junit; then
-        print_success "✓ E2E tests passed"
+        print_success "E2E tests passed"
         E2E_TESTS_PASSED=1
     else
-        print_error "✗ E2E tests failed"
+        print_error "E2E tests failed"
         E2E_TESTS_FAILED=1
     fi
     
@@ -167,7 +167,7 @@ run_e2e_tests() {
     if [ -d "playwright-report" ]; then
         mkdir -p test-results/playwright-report
         cp -r playwright-report/* test-results/playwright-report/ 2>/dev/null || true
-        print_success "✓ Playwright report generated"
+        print_success "Playwright report generated"
     fi
         
     return 0
@@ -312,7 +312,7 @@ generate_test_report() {
 </head>
 <body>
     <div class="container">
-        <h1>🧪 VA.gov Test Report</h1>
+        <h1>VA.gov Test Report</h1>
         <div class="timestamp">Generated: <script>document.write(new Date().toLocaleString())</script></div>
         
         <div class="summary">
@@ -335,7 +335,7 @@ generate_test_report() {
         </div>
 
         <div class="test-section">
-            <h2>📊 Test Results Summary</h2>
+            <h2>Test Results Summary</h2>
             <table>
                 <tr>
                     <th>Test Type</th>
@@ -347,25 +347,25 @@ generate_test_report() {
                     <td>Unit Tests</td>
                     <td id="unit-passed">0</td>
                     <td id="unit-failed">0</td>
-                    <td id="unit-status" class="passed">✓ Passed</td>
+                    <td id="unit-status" class="passed">Passed</td>
                 </tr>
                 <tr>
                     <td>E2E Tests</td>
                     <td id="e2e-passed">0</td>
                     <td id="e2e-failed">0</td>
-                    <td id="e2e-status" class="passed">✓ Passed</td>
+                    <td id="e2e-status" class="passed">Passed</td>
                 </tr>
                 <tr>
                     <td>API Tests</td>
                     <td id="api-passed">0</td>
                     <td id="api-failed">0</td>
-                    <td id="api-status" class="passed">✓ Passed</td>
+                    <td id="api-status" class="passed">Passed</td>
                 </tr>
                 <tr>
                     <td>Performance Tests</td>
                     <td id="perf-passed">0</td>
                     <td id="perf-failed">0</td>
-                    <td id="perf-status" class="passed">✓ Passed</td>
+                    <td id="perf-status" class="passed">Passed</td>
                 </tr>
             </table>
         </div>

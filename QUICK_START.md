@@ -12,6 +12,7 @@
 ### Installation
 
 **Step 1: Clone and install**
+
 ```bash
 git clone https://github.com/your-org/va-gov-test-automation.git
 cd va-gov-test-automation
@@ -20,6 +21,7 @@ npx playwright install
 ```
 
 **Step 2: Create environment file**
+
 ```bash
 cat > .env.local <<EOF
 NODE_ENV=development
@@ -31,6 +33,7 @@ EOF
 ```
 
 **Step 3: Start services**
+
 ```bash
 # Option A: Using Docker Compose
 docker-compose up -d postgres redis
@@ -40,6 +43,7 @@ docker-compose up -d postgres redis
 ```
 
 **Step 4: Run tests**
+
 ```bash
 # Run unit tests
 npm run test:unit
@@ -180,12 +184,15 @@ docker run -it --rm va-test-automation:latest bash
 ### First-Time Setup
 
 1. **Add GitHub secrets**:
+
    ```
    Settings → Secrets and variables → Actions → New repository secret
    ```
+
    Add: `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `SLACK_WEBHOOK_URL`
 
 2. **Create S3 buckets**:
+
    ```bash
    aws s3 mb s3://va-test-staging --region us-east-1
    aws s3 mb s3://va-test-production --region us-east-1
@@ -223,6 +230,7 @@ git push origin main
 ### Issue: Tests timeout
 
 **Solution:**
+
 ```bash
 # Increase timeout
 npm run test:e2e -- --timeout=120000
@@ -237,6 +245,7 @@ DEBUG=* npm run test:e2e
 ### Issue: "Browser was not launched"
 
 **Solution:**
+
 ```bash
 # Reinstall Playwright browsers
 npx playwright install --with-deps
@@ -251,6 +260,7 @@ npx playwright install-deps
 ### Issue: Port 3000 already in use
 
 **Solution:**
+
 ```bash
 # Find and kill process on port 3000
 lsof -ti:3000 | xargs kill -9
@@ -262,6 +272,7 @@ PORT=3001 npm start
 ### Issue: Database connection failed
 
 **Solution:**
+
 ```bash
 # Start PostgreSQL
 docker-compose up -d postgres
@@ -276,6 +287,7 @@ psql $DATABASE_URL -c "SELECT 1"
 ### Issue: S3 permission denied
 
 **Solution:**
+
 ```bash
 # Verify AWS credentials
 aws sts get-caller-identity
@@ -336,7 +348,9 @@ va-gov-test-automation/
 ## Key Configuration Files
 
 ### playwright.config.ts
+
 Configures Playwright test runner:
+
 - Timeout settings
 - Browser selection (Chromium, Firefox, WebKit)
 - Reporter configuration
@@ -344,14 +358,18 @@ Configures Playwright test runner:
 - Parallel execution
 
 ### jest.config.js
+
 Configures Jest test runner for unit and API tests:
+
 - Test environment (node, jsdom)
 - Setup files
 - Coverage thresholds
 - Module resolution
 
 ### tsconfig.json
+
 TypeScript compiler configuration:
+
 - Target and module output
 - Strict type checking
 - Decorator support
@@ -361,19 +379,22 @@ TypeScript compiler configuration:
 
 ## Useful Resources
 
-📚 **Documentation**
+### Documentation
+
 - [Full CI/CD Pipeline Documentation](./CI_CD_PIPELINE.md)
 - [Test Plan](./VA_GOV_TEST_PLAN.md)
 - [Playwright Documentation](https://playwright.dev)
 - [GitHub Actions Documentation](https://docs.github.com/actions)
 
-🔧 **Tools & Technologies**
+### Tools & Technologies
+
 - [Playwright Test](https://playwright.dev/docs/intro)
 - [Jest](https://jestjs.io/)
 - [GitHub Actions](https://github.com/features/actions)
 - [Docker](https://docs.docker.com/)
 
-📖 **Learning Resources**
+### Learning Resources
+
 - [Playwright Best Practices](https://playwright.dev/docs/best-practices)
 - [Testing Best Practices](https://pytest.org/en/latest/goodpractices.html)
 - [CI/CD Best Practices](https://www.atlassian.com/continuous-delivery/principles/continuous-integration-vs-delivery)
@@ -382,7 +403,8 @@ TypeScript compiler configuration:
 
 ## Getting Help
 
-💬 **Support Channels**
+### Support Channels
+
 1. Check [Troubleshooting](#troubleshooting) section
 2. Review logs in `test-results/` or `.github/workflows/`
 3. Ask in team Slack channel: `#qa-automation`
@@ -443,7 +465,6 @@ npm run docker:test             # Run tests in Docker
 
 ---
 
-**Happy Testing! 🚀**
+**Happy Testing!**
 
 For detailed information, see [CI_CD_PIPELINE.md](./CI_CD_PIPELINE.md)
-

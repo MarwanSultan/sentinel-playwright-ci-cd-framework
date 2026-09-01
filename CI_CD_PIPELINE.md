@@ -1,6 +1,7 @@
 # VA.gov Test Automation - CI/CD Pipeline Documentation
 
 ## Table of Contents
+
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Pipeline Components](#pipeline-components)
@@ -30,14 +31,14 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 
 ### Key Features
 
-✅ **Fully Automated**: Triggered on push, pull request, and schedule
-✅ **Multi-Stage Pipeline**: Build → Test → Deploy → Verify
-✅ **Parallel Execution**: Run independent tests concurrently
-✅ **Container-Based**: Docker/Docker Compose for consistency
-✅ **CloudFront Integration**: CDN cache invalidation post-deploy
-✅ **Automatic Rollback**: Emergency rollback on deployment failure
-✅ **Comprehensive Monitoring**: Health checks and notifications
-✅ **Production-Ready**: Enterprise security and compliance
+- **Fully Automated**: Triggered on push, pull request, and schedule
+- **Multi-Stage Pipeline**: Build → Test → Deploy → Verify
+- **Parallel Execution**: Run independent tests concurrently
+- **Container-Based**: Docker/Docker Compose for consistency
+- **CloudFront Integration**: CDN cache invalidation post-deploy
+- **Automatic Rollback**: Emergency rollback on deployment failure
+- **Comprehensive Monitoring**: Health checks and notifications
+- **Production-Ready**: Enterprise security and compliance
 
 ---
 
@@ -113,6 +114,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 ## Pipeline Components
 
 ### 1. **Quality Checks Job**
+
 - **Purpose**: Validate code quality before build
 - **Tasks**:
   - ESLint static analysis
@@ -123,6 +125,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Failure Action**: Blocks pipeline
 
 ### 2. **Build Job**
+
 - **Purpose**: Compile and create deployable artifacts
 - **Tasks**:
   - Install dependencies
@@ -134,6 +137,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Failure Action**: Blocks all downstream jobs
 
 ### 3. **Unit Tests Job**
+
 - **Purpose**: Validate individual components
 - **Framework**: Jest
 - **Coverage**: 80%+ required
@@ -141,6 +145,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Reports**: HTML coverage, JUnit XML
 
 ### 4. **Functional Tests Job (E2E)**
+
 - **Purpose**: Test user workflows end-to-end
 - **Framework**: Playwright
 - **Test Suites** (parallel execution):
@@ -154,6 +159,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Video Capture**: On failure only (saves storage)
 
 ### 5. **API Tests Job**
+
 - **Purpose**: Integration testing with backend APIs
 - **Database**: PostgreSQL service container
 - **Approach**: Jest-based API testing
@@ -161,6 +167,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Duration**: ~5-8 minutes
 
 ### 6. **Security Scanning Job**
+
 - **Purpose**: Identify security vulnerabilities
 - **Tools**:
   - Trivy (vulnerability scanning)
@@ -170,6 +177,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Duration**: ~3-5 minutes
 
 ### 7. **Performance Tests Job**
+
 - **Purpose**: Load and stress testing
 - **Tools**: k6
 - **Scenarios**: Concurrent user simulation (50-500 users)
@@ -178,6 +186,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Trigger**: Only on main branch pushes
 
 ### 8. **Deploy to Staging**
+
 - **Purpose**: Validate deployment process in safe environment
 - **Method**: S3 + CloudFront
 - **Steps**:
@@ -191,6 +200,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Failure Action**: Automatic rollback
 
 ### 9. **Deploy to Production**
+
 - **Purpose**: Release tested version to live environment
 - **Prerequisites**: All tests passed + manual approval
 - **Method**: S3 + CloudFront
@@ -200,6 +210,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Failure Action**: Automatic rollback with notification
 
 ### 10. **Health Check & Monitoring**
+
 - **Purpose**: Verify deployment health
 - **Checks**:
   - HTTP health endpoint (200 OK)
@@ -210,6 +221,7 @@ The VA.gov Test Automation CI/CD pipeline is an enterprise-grade, fully automate
 - **Retries**: 30 attempts with 2s intervals
 
 ### 11. **Notifications**
+
 - **Channels**:
   - Slack webhook (real-time)
   - Email (on failure)
@@ -258,6 +270,7 @@ EMAIL_PASSWORD=<app_password>
 ```
 
 **To set secrets:**
+
 1. Go to Repository → Settings → Secrets and Variables → Actions
 2. Click "New repository secret"
 3. Add each secret with the exact names above
@@ -304,12 +317,7 @@ Create IAM policy for CI/CD user:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket"
-      ],
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
       "Resource": [
         "arn:aws:s3:::va-test-staging/*",
         "arn:aws:s3:::va-test-staging",
@@ -364,17 +372,20 @@ npm run test:e2e
 ### Running the Pipeline Manually
 
 **Option 1: Push to trigger branch**
+
 ```bash
 # Will trigger pipeline automatically
 git push origin feature/my-feature
 ```
 
 **Option 2: Rerun failed job in GitHub UI**
+
 1. Go to Actions tab
 2. Select failed workflow
 3. Click "Re-run jobs"
 
 **Option 3: Trigger via GitHub CLI**
+
 ```bash
 # Trigger workflow via CLI
 gh workflow run ci-cd.yml -f environment=staging
@@ -448,6 +459,7 @@ git push origin develop
 ```
 
 **What happens:**
+
 1. Code quality checks
 2. Build artifacts
 3. All tests executed
@@ -471,12 +483,14 @@ git push origin main
 ```
 
 **Prerequisites for production deployment:**
-- ✅ All tests in main branch passed
-- ✅ Security scan passed
-- ✅ No critical vulnerabilities
-- ✅ Approval from CODEOWNERS (if configured)
+
+- All tests in main branch passed
+- Security scan passed
+- No critical vulnerabilities
+- Approval from CODEOWNERS (if configured)
 
 **What happens:**
+
 1. Code quality checks
 2. Build artifacts
 3. All tests executed
@@ -511,6 +525,7 @@ bash scripts/deploy.sh production
 ### Automatic Rollback
 
 Triggered automatically when:
+
 - Deployment verification fails
 - Health checks fail
 - Smoke tests fail in production
@@ -537,6 +552,7 @@ bash scripts/rollback.sh production
 ```
 
 **Rollback steps:**
+
 1. Confirm environment (double-check for production)
 2. List available backups
 3. Select latest backup
@@ -553,11 +569,13 @@ bash scripts/rollback.sh production
 If rollback itself fails:
 
 1. **Check logs**:
+
    ```bash
    cat rollback-<environment>-*.log
    ```
 
 2. **Verify current state**:
+
    ```bash
    curl https://va-test.example.com/health
    ```
@@ -575,20 +593,22 @@ If rollback itself fails:
 Messages posted to configured Slack channel:
 
 ```
-✅ Build #123 - SUCCESS
+Build #123 - SUCCESS
 Branch: main
 Commit: a1b2c3d
 View Details: [button link to GitHub Actions]
 ```
 
 **Statuses**:
-- ✅ All jobs passed
-- ⚠️ Warnings (tests passed with warnings)
-- ❌ Failed (test failures or build errors)
+
+- All jobs passed
+- Warnings (tests passed with warnings)
+- Failed (test failures or build errors)
 
 ### Email Notifications
 
 Sent to `qa-team@example.com` on:
+
 - Build failures
 - Deployment failures
 - Critical security vulnerabilities
@@ -603,6 +623,7 @@ Sent to `qa-team@example.com` on:
 ### Monitoring Dashboard (Optional)
 
 Set up monitoring with:
+
 - **Prometheus**: Metrics collection
 - **Grafana**: Visualization dashboards
 - **CloudWatch**: AWS-native monitoring
@@ -626,6 +647,7 @@ docker-compose --profile monitoring up -d prometheus grafana
 **Symptom**: "npm ci failed" or "npm run build failed"
 
 **Solutions**:
+
 ```bash
 # Clear npm cache
 npm cache clean --force
@@ -645,6 +667,7 @@ node --version  # Should be 18.x
 **Symptom**: "Timeout: Browser was not launched" or "Waiting for element"
 
 **Solutions**:
+
 ```bash
 # Reinstall Playwright browsers
 npx playwright install --with-deps
@@ -665,6 +688,7 @@ curl http://localhost:3000/health
 **Symptom**: "Access Denied" or "NoSuchBucket"
 
 **Solutions**:
+
 ```bash
 # Verify AWS credentials
 aws sts get-caller-identity
@@ -684,6 +708,7 @@ aws s3 sync dist/ s3://va-test-staging/ --region us-east-1
 **Symptom**: Old content served after deploy
 
 **Solutions**:
+
 ```bash
 # Manual invalidation
 aws cloudfront create-invalidation \
@@ -702,6 +727,7 @@ aws cloudfront list-invalidations --distribution-id <ID>
 **Symptom**: "No backup found" or "Rollback verification failed"
 
 **Solutions**:
+
 ```bash
 # Check available backups
 aws s3 ls s3://va-test-production/backups/production/ --recursive
@@ -758,30 +784,30 @@ docker-compose logs -f test-automation
 
 These must be set in GitHub repository settings:
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `AWS_REGION` | AWS region for S3 and CloudFront | `us-east-1` |
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key | `AKI...` |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `wJal...` |
-| `SLACK_WEBHOOK_URL` | Slack incoming webhook | `https://hooks.slack.com/...` |
-| `EMAIL_USERNAME` | Email for notifications | `ci@example.com` |
-| `EMAIL_PASSWORD` | Email password/app token | `xxxx xxxx xxxx xxxx` |
+| Variable                | Description                      | Example                       |
+| ----------------------- | -------------------------------- | ----------------------------- |
+| `AWS_REGION`            | AWS region for S3 and CloudFront | `us-east-1`                   |
+| `AWS_ACCESS_KEY_ID`     | AWS IAM access key               | `AKI...`                      |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key               | `wJal...`                     |
+| `SLACK_WEBHOOK_URL`     | Slack incoming webhook           | `https://hooks.slack.com/...` |
+| `EMAIL_USERNAME`        | Email for notifications          | `ci@example.com`              |
+| `EMAIL_PASSWORD`        | Email password/app token         | `xxxx xxxx xxxx xxxx`         |
 
 ### Runtime Environment Variables
 
 Used during pipeline execution:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NODE_ENV` | `test` | Environment mode |
-| `ENVIRONMENT` | `staging` | Deployment environment |
-| `BASE_URL` | `http://localhost:3000` | Application base URL |
-| `DATABASE_URL` | `postgres://...` | Database connection string |
-| `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
-| `PARALLEL_WORKERS` | `4` | Parallel test workers |
-| `LOG_LEVEL` | `info` | Logging level |
-| `TIMEOUT` | `60000` | Test timeout (ms) |
-| `RETRY_DELAY` | `10` | Retry delay (seconds) |
+| Variable           | Default                  | Description                |
+| ------------------ | ------------------------ | -------------------------- |
+| `NODE_ENV`         | `test`                   | Environment mode           |
+| `ENVIRONMENT`      | `staging`                | Deployment environment     |
+| `BASE_URL`         | `http://localhost:3000`  | Application base URL       |
+| `DATABASE_URL`     | `postgres://...`         | Database connection string |
+| `REDIS_URL`        | `redis://localhost:6379` | Redis connection string    |
+| `PARALLEL_WORKERS` | `4`                      | Parallel test workers      |
+| `LOG_LEVEL`        | `info`                   | Logging level              |
+| `TIMEOUT`          | `60000`                  | Test timeout (ms)          |
+| `RETRY_DELAY`      | `10`                     | Retry delay (seconds)      |
 
 ### Docker Environment Variables
 
@@ -810,6 +836,7 @@ feature/* (feature branches)
 ```
 
 **Rules:**
+
 - `main` requires PR approval and passing tests
 - `develop` auto-deploys to staging
 - Feature branches blocked until tests pass
@@ -830,23 +857,23 @@ docs: Update deployment documentation
 ### 3. Test Best Practices
 
 ```javascript
-// ✅ DO: Descriptive test names
+// DO: Descriptive test names
 test('User can schedule appointment with valid clinic and date', async () => {});
 
-// ❌ DON'T: Vague test names
+// DON'T: Vague test names
 test('Test scheduling', async () => {});
 
-// ✅ DO: Proper assertions
+// DO: Proper assertions
 expect(appointmentStatus).toBe('confirmed');
 
-// ❌ DON'T: Weak assertions
+// DON'T: Weak assertions
 expect(result).toBeTruthy();
 
-// ✅ DO: Use Page Object Model
+// DO: Use Page Object Model
 const loginPage = new LoginPage(page);
 await loginPage.login(credentials);
 
-// ❌ DON'T: Direct element interaction everywhere
+// DON'T: Direct element interaction everywhere
 await page.fill('input[type="email"]', 'user@example.com');
 ```
 
@@ -941,4 +968,3 @@ gh run rerun <run_id> --failed
 **Version**: 1.0
 **Last Updated**: February 18, 2026
 **Maintained By**: VA.gov QA Automation Team
-

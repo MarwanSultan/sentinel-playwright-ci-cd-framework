@@ -13,7 +13,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
 
 jobs:
   # Job 1: Code Quality & Dependencies Check
@@ -83,9 +83,9 @@ jobs:
             const vulnerabilities = auditResults.metadata?.vulnerabilities?.critical || 0;
 
             let comment = `## Code Quality Report\n`;
-            comment += `- 🧪 Playwright test discovery: validated\n`;
-            comment += `- 🔐 Critical Vulnerabilities: ${vulnerabilities}\n`;
-            comment += `- 🛡️ SAST: CodeQL + dependency review enabled\n`;
+            comment += `- Playwright test discovery: validated\n`;
+            comment += `- Critical Vulnerabilities: ${vulnerabilities}\n`;
+            comment += `- SAST: CodeQL + dependency review enabled\n`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -94,50 +94,11 @@ jobs:
               body: comment
             });
 
-  # Job 2: Validate Test Suite
-  build:
-    name: Validate Test Suite
-    runs-on: ubuntu-latest
-    needs: quality-checks
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Validate Playwright configuration
-        run: npx playwright test --list
-
-      - name: Package test suite
-        run: |
-          mkdir -p build-artifacts
-          tar --exclude=node_modules --exclude=test-results --exclude=playwright-report \
-            --exclude=build-artifacts \
-            -czf build-artifacts/va-gov-test-suite.tar.gz .
-
-      - name: Upload test suite artifact
-        if: false
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-suite-artifacts
-          path: build-artifacts/
-          retention-days: 7
-
-  # Job 3: Unit Tests
+  # Job 2: Unit Tests
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: build
+    needs: quality-checks
 
     steps:
       - name: Checkout code
@@ -154,8 +115,6 @@ jobs:
 
       - name: Run unit tests
         run: npx playwright test tests/unit
-        continue-on-error: true
-
       - name: Upload test results
         if: false
         uses: actions/upload-artifact@v4
@@ -166,11 +125,11 @@ jobs:
             test-results/
           retention-days: 30
 
-  # Job 4: Functional Tests (Playwright UI Tests)
+  # Job 3: Functional Tests (Playwright UI Tests)
   functional-tests:
     name: Functional Tests (Playwright)
     runs-on: ubuntu-latest
-    needs: build
+    needs: quality-checks
     timeout-minutes: 60
 
     steps:
@@ -187,7 +146,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
         run: npx playwright test tests/appointment-scheduling.spec.ts tests/smoke
@@ -220,11 +179,11 @@ jobs:
           path: test-results/traces/
           retention-days: 7
 
-  # Job 5: API Tests
+  # Job 4: API Tests
   api-tests:
     name: API Integration Tests
     runs-on: ubuntu-latest
-    needs: build
+    needs: quality-checks
     timeout-minutes: 30
 
     services:
@@ -269,11 +228,11 @@ jobs:
           path: test-results/api/
           retention-days: 30
 
-  # Job 6: Performance Tests
+  # Job 5: Performance Tests
   performance-tests:
     name: Performance Tests
     runs-on: ubuntu-latest
-    needs: build
+    needs: quality-checks
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 45
 
@@ -289,13 +248,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install k6
-        run: |
-          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
 
       - name: Run performance tests
         run: npx playwright test tests/performance
@@ -327,7 +279,7 @@ jobs:
               body: comment
             });
 
-  # Job 7: Security Scanning
+  # Job 6: Security Scanning
   security-scan:
     name: Security Scanning
     runs-on: ubuntu-latest
@@ -388,7 +340,7 @@ jobs:
           path: reports/
           retention-days: 30
 
-  # Job 8: Test Report Consolidation
+  # Job 7: Test Report Consolidation
   test-report:
     name: Consolidate Test Reports
     runs-on: ubuntu-latest
@@ -429,9 +381,9 @@ jobs:
             <div class=\"summary\">
               <h2>Test Summary</h2>
               <ul>
-                <li>Unit Tests: <span class=\"passed\">✓ Passed</span></li>
-                <li>Functional Tests: <span class=\"passed\">✓ Passed</span></li>
-                <li>API Tests: <span class=\"passed\">✓ Passed</span></li>
+                <li>Unit Tests: <span class=\"passed\">Passed</span></li>
+                <li>Functional Tests: <span class=\"passed\">Passed</span></li>
+                <li>API Tests: <span class=\"passed\">Passed</span></li>
               </ul>
             </div>
           </body>
@@ -450,14 +402,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const comment = `## ✅ Test Execution Summary\n\n` +
+            const comment = `## Test Execution Summary\n\n` +
               `| Test Suite | Status | Details |\n` +
               `|-----------|--------|----------|\n` +
-              `| Unit Tests | ✅ Passed | See artifacts |\n` +
-              `| Functional Tests | ✅ Passed | Playwright reports uploaded |\n` +
-              `| API Tests | ✅ Passed | Integration tests complete |\n` +
-              `| Security Scan | ✅ Passed | Trivy & Dependency-Check passed |\n\n` +
-              `[📊 View Detailed Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+              `| Unit Tests | Passed | See artifacts |\n` +
+              `| Functional Tests | Passed | Playwright reports uploaded |\n` +
+              `| API Tests | Passed | Integration tests complete |\n` +
+              `| Security Scan | Passed | Trivy & Dependency-Check passed |\n\n` +
+              `[View Detailed Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -466,12 +418,11 @@ jobs:
               body: comment
             });
 
-  # Job 9: Deploy to Staging
+  # Job 8: Deploy to Staging
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs:
-      - build
       - unit-tests
       - functional-tests
       - api-tests
@@ -549,12 +500,11 @@ jobs:
               description: 'Deployment failed'
             });
 
-  # Job 10: Deploy to Production
+  # Job 9: Deploy to Production
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs:
-      - build
       - unit-tests
       - functional-tests
       - api-tests
@@ -636,10 +586,10 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: '🚨 **Production deployment failed!** Automatic rollback initiated. Please review logs.'
+              body: '**Production deployment failed!** Automatic rollback initiated. Please review logs.'
             });
 
-  # Job 11: Health Check Post-Deployment
+  # Job 10: Health Check Post-Deployment
   health-check:
     name: Health Check and Monitoring
     runs-on: ubuntu-latest
@@ -669,13 +619,12 @@ jobs:
             exit 1
           '
 
-  # Job 12: Notifications
+  # Job 11: Notifications
   notify:
     name: Send Notifications
     runs-on: ubuntu-latest
     needs:
       - quality-checks
-      - build
       - unit-tests
       - functional-tests
       - api-tests
@@ -688,15 +637,12 @@ jobs:
         id: status
         run: |
           if [ "${{ needs.quality-checks.result }}" = "failure" ] || \
-             [ "${{ needs.build.result }}" = "failure" ] || \
              [ "${{ needs.unit-tests.result }}" = "failure" ] || \
              [ "${{ needs.functional-tests.result }}" = "failure" ] || \
              [ "${{ needs.api-tests.result }}" = "failure" ]; then
             echo "status=failure" >> $GITHUB_OUTPUT
-            echo "emoji=❌" >> $GITHUB_OUTPUT
           else
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "emoji=✅" >> $GITHUB_OUTPUT
           fi
 
       # Slack notification disabled per request — step removed
@@ -709,7 +655,7 @@ jobs:
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🐛 CI/CD Pipeline Failed - Build #${{ github.run_number }}`,
+              title: `CI/CD Pipeline Failed - Build #${{ github.run_number }}`,
               body: `Pipeline failed on \`${{ github.ref_name }}\` branch.\n\n[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`,
               labels: ['ci-failure', 'bug']
             });

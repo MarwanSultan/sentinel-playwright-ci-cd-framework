@@ -256,11 +256,8 @@ send_notifications() {
     # Send Slack notification if webhook configured
     if [ -n "$NOTIFICATION_SLACK" ]; then
         local color="good"
-        local emoji="✅"
-        
         if [ "$status" != "0" ]; then
             color="danger"
-            emoji="❌"
         fi
         
         local payload="{
@@ -269,7 +266,7 @@ send_notifications() {
                     \"type\": \"section\",
                     \"text\": {
                         \"type\": \"mrkdwn\",
-                        \"text\": \"$emoji *${ENVIRONMENT^^} Rollback Executed*\\nBackup: \`$backup_key\`\\nTime: $(date)\"
+                        \"text\": \"*${ENVIRONMENT^^} Rollback Executed*\\nBackup: \`$backup_key\`\\nTime: $(date)\"
                     }
                 },
                 {
@@ -329,7 +326,7 @@ generate_report() {
 </head>
 <body>
     <div class="report">
-        <h1>🔄 Rollback Report</h1>
+        <h1>Rollback Report</h1>
         <div class="status-box">Status: $status_text</div>
         
         <div class="details">
@@ -372,7 +369,7 @@ EOF
 # Interactive confirm
 confirm_rollback() {
     if [ "$ENVIRONMENT" = "production" ]; then
-        warn "⚠️  PRODUCTION ROLLBACK INITIATED ⚠️"
+        warn "PRODUCTION ROLLBACK INITIATED"
         warn "You are about to rollback PRODUCTION environment"
         warn "This action may affect all users"
         

@@ -2,12 +2,6 @@ import { defineConfig, devices } from '@playwright/test';
 
 const BASE_URL = process.env.BASE_URL || 'https://www.va.gov';
 const IS_CI = !!process.env.CI;
-const IS_ACT = !!process.env.ACT;
-
-let WORKER_COUNT = 4;
-if (IS_CI) {
-  WORKER_COUNT = IS_ACT ? 2 : 10;
-}
 
 /**
  * VA.gov Playwright Test Configuration
@@ -18,10 +12,11 @@ export default defineConfig({
   testMatch: ['**/*.spec.ts', '**/*.unit.ts'],
 
   /* Global configuration */
-  fullyParallel: !IS_CI,
+  fullyParallel: true,
+  workers: 4,
   forbidOnly: IS_CI,
   retries: IS_CI ? 2 : 0,
-  workers: WORKER_COUNT,
+
   timeout: 60 * 1000, // 60 seconds per test
   expect: {
     timeout: 10 * 1000, // 10 seconds for expectations

@@ -354,7 +354,7 @@ generate_report() {
 </head>
 <body>
     <div class="report">
-        <h1>🚀 Deployment Report</h1>
+        <h1>Deployment Report</h1>
         <div class="section">
             <h2>Deployment Details</h2>
             <table>
