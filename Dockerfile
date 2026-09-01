@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for VA.gov Test Automation
 
 # Stage 1: Base image with Node.js
-FROM node:18-alpine AS base
+FROM node:26-alpine AS base
 LABEL maintainer="VA.gov QA Team"
 LABEL description="VA.gov Test Automation - Playwright Test Suite"
 
