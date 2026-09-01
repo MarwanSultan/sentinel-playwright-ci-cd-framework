@@ -1,7 +1,7 @@
 name: VA.gov Test Automation CI/CD Pipeline
 
 on:
-  push:  # run on every push (all branches)
+  push: # run on every push (all branches)
   pull_request:
     branches:
       - main
@@ -24,12 +24,12 @@ jobs:
       contents: read
       issues: write
       security-events: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for better analysis
+          fetch-depth: 0 # Full history for better analysis
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,6 +46,12 @@ jobs:
       - name: Run npm audit
         run: npm audit --json > audit-results.json
         continue-on-error: true
+
+      - name: Run dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
 
       - name: Upload code quality reports
         uses: actions/upload-artifact@v4
@@ -65,11 +71,12 @@ jobs:
             const fs = require('fs');
             const auditResults = JSON.parse(fs.readFileSync('audit-results.json', 'utf8'));
             const vulnerabilities = auditResults.metadata?.vulnerabilities?.critical || 0;
-            
+
             let comment = `## Code Quality Report\n`;
             comment += `- 🧪 Playwright test discovery: validated\n`;
             comment += `- 🔐 Critical Vulnerabilities: ${vulnerabilities}\n`;
-            
+            comment += `- 🛡️ SAST: CodeQL + dependency review enabled\n`;
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -186,7 +193,7 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
-      - name: Upload test results  
+      - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -301,7 +308,7 @@ jobs:
             const fs = require('fs');
             const comment = `## Performance Test Results\n\n` +
               `Playwright performance scenarios completed. See the uploaded test report for details.\n`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -324,6 +331,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: codeql-javascript
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -333,7 +353,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -425,7 +445,7 @@ jobs:
               `| API Tests | ✅ Passed | Integration tests complete |\n` +
               `| Security Scan | ✅ Passed | Trivy & Dependency-Check passed |\n\n` +
               `[📊 View Detailed Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
