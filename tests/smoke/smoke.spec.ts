@@ -122,9 +122,13 @@ test.describe('Smoke Tests - Core Functionality Verification', () => {
   test.describe('Basic Navigation', () => {
     test('SMOKE-16: Can navigate to benefits page', async ({ page }) => {
       await page.goto(BASE_URL);
-      const benefitsLink = page.locator('a[href*="/benefits"], a[href*="benefits"]').first();
+      const benefitsLink = page.getByRole('link', { name: /benefits/i }).first();
+
+      await expect(benefitsLink).toBeVisible();
 
       const href = await benefitsLink.getAttribute('href');
+
+      expect(href).toBeTruthy();
 
       if (href) {
         await benefitsLink.click();

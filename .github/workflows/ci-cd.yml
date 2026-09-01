@@ -31,6 +31,16 @@ jobs:
         with:
           fetch-depth: 0 # Full history for better analysis
 
+      - name: Detect local act runner
+        id: detect-act
+        shell: bash
+        run: |
+          if [ -n "${ACT:-}" ]; then
+            echo "is_act=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_act=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -54,8 +64,8 @@ jobs:
           fail-on-severity: moderate
 
       - name: Upload code quality reports
+        if: false
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: code-quality-reports
           path: |
@@ -116,6 +126,7 @@ jobs:
             -czf build-artifacts/va-gov-test-suite.tar.gz .
 
       - name: Upload test suite artifact
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: test-suite-artifacts
@@ -146,7 +157,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload test results
-        if: always()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
@@ -186,7 +197,7 @@ jobs:
           CI: true
 
       - name: Upload Playwright report
-        if: always()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
@@ -194,7 +205,7 @@ jobs:
           retention-days: 30
 
       - name: Upload test results
-        if: always()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: playwright-test-results
@@ -202,7 +213,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test traces
-        if: failure()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
@@ -251,7 +262,7 @@ jobs:
           environment: test
 
       - name: Upload API test results
-        if: always()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: api-test-results
@@ -293,7 +304,7 @@ jobs:
           K6_OUT: json=test-results/performance/k6-results.json
 
       - name: Upload performance results
-        if: always()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: performance-test-results
@@ -370,8 +381,8 @@ jobs:
             --enableRetired
 
       - name: Upload dependency check results
+        if: false
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: dependency-check-report
           path: reports/
@@ -392,6 +403,7 @@ jobs:
 
     steps:
       - name: Download all test artifacts
+        if: false
         uses: actions/download-artifact@v4
 
       - name: Generate consolidated HTML report
@@ -426,6 +438,7 @@ jobs:
           </html>" > reports/consolidated/index.html
 
       - name: Upload consolidated report
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: test-report-consolidated
