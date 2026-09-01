@@ -1,9 +1,9 @@
+import { expect, test } from "@playwright/test";
+
 /**
  * Smoke Tests
  * Quick sanity checks to verify core functionality is working
  */
-
-import { expect, test } from "@playwright/test";
 
 test.describe("Smoke Tests - Core Functionality Verification", () => {
   const BASE_URL = "https://www.va.gov";
