@@ -42,7 +42,7 @@ export class VAGovPage {
     if (path) {
       await this.page.goto(`${this.baseURL}${path}`);
     }
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('domcontentloaded');
   }
 
   /**

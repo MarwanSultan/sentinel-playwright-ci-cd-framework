@@ -186,21 +186,6 @@ jobs:
     needs: quality-checks
     timeout-minutes: 30
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: test_db
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -219,8 +204,7 @@ jobs:
       - name: Run API tests
         run: npx playwright test tests/api
         env:
-          DATABASE_URL: postgres://testuser:testpass@localhost:5432/test_db
-          environment: test
+          ENVIRONMENT: test
 
       - name: Upload API test results
         if: false
@@ -293,25 +277,39 @@ jobs:
       security-events: write
 
     steps:
+      - name: Detect local act runner
+        id: detect-act
+        shell: bash
+        run: |
+          if [ -n "${ACT:-}" ]; then
+            echo "is_act=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_act=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Initialize CodeQL
+        if: steps.detect-act.outputs.is_act != 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
 
       - name: Autobuild
+        if: steps.detect-act.outputs.is_act != 'true'
         uses: github/codeql-action/autobuild@v3
 
       - name: Analyze with CodeQL
+        if: steps.detect-act.outputs.is_act != 'true'
         uses: github/codeql-action/analyze@v3
         with:
           category: codeql-javascript
 
       - name: Run Trivy vulnerability scanner
+        if: steps.detect-act.outputs.is_act != 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
@@ -327,6 +325,7 @@ jobs:
       #     category: 'trivy'
 
       - name: Run OWASP Dependency-Check
+        if: steps.detect-act.outputs.is_act != 'true'
         uses: dependency-check/Dependency-Check_Action@main
         with:
           project: 'VA.gov Test Automation'

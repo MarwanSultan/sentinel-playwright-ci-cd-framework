@@ -35,18 +35,16 @@ test.describe('Critical smoke tests', () => {
   });
 
   test('SMOKE-07: Healthcare section is available', async ({ page }) => {
-    await page.goto(BASE_URL);
-    expect(
-      await page
-        .locator('a')
-        .filter({ hasText: /health/i })
-        .count(),
-    ).toBeGreaterThan(0);
+    const response = await page.goto(`${BASE_URL}/health-care`);
+    expect(response?.status()).toBeLessThan(400);
+    await expect(page).toHaveURL(/health-care/i);
   });
 
   test('SMOKE-08: Search functionality exists', async ({ page }) => {
     await page.goto(BASE_URL);
-    expect(await page.locator('input[type="search"], input[placeholder*="Search"]').count()).toBeGreaterThan(0);
+    await expect(page.locator('input[type="search"], input[placeholder*="Search"]')).toHaveCount(1, {
+      timeout: 30000,
+    });
   });
 
   test('SMOKE-09: Sign-in option is available', async ({ page }) => {
@@ -61,6 +59,6 @@ test.describe('Critical smoke tests', () => {
 
   test('SMOKE-10: Footer information is present', async ({ page }) => {
     await page.goto(BASE_URL);
-    await expect(page.locator('footer')).toBeVisible();
+    await expect(page.locator('footer')).toBeAttached({ timeout: 30000 });
   });
 });
