@@ -143,7 +143,7 @@ generate_metadata() {
     
     local git_commit=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
     local git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    local build_version=$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | trim)
+    local build_version=$(node -p "require('./package.json').version")
     
     mkdir -p build-reports
     
@@ -206,18 +206,14 @@ generate_source_maps() {
 verify_build() {
     log "Verifying build output..."
     
-    # Check if build directory has content
-    if [ ! "$(ls -A $BUILD_DIR)" ]; then
+    # This repository contains the test runner rather than a deployable app.
+    # The build marker created by build:dist is the expected artifact.
+    if [ ! -f "$BUILD_DIR/.build-complete" ]; then
         error "Build directory is empty"
         return 1
     fi
     
-    # Check for entry files
-    if [ -f "$BUILD_DIR/index.js" ] || [ -f "$BUILD_DIR/index.html" ]; then
-        log "Build artifacts verified"
-    else
-        warn "No expected entry files found, but build directory has content"
-    fi
+    log "Build artifacts verified"
 }
 
 # Create build summary

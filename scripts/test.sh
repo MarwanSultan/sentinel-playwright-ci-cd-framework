@@ -26,6 +26,7 @@ TEST_TIMEOUT=${TEST_TIMEOUT:-60000}
 REPORT_DIR="test-results"
 ENVIRONMENT=${ENVIRONMENT:-test}
 BASE_URL=${BASE_URL:-http://localhost:3000}
+PROJECT_DIR=${PROJECT_DIR:-$(pwd)}
 
 # Test results tracking
 UNIT_TESTS_PASSED=0
@@ -59,6 +60,11 @@ debug() {
         echo -e "${YELLOW}[DEBUG]${NC} $1"
     fi
 }
+
+print_step() { log "$1"; }
+print_info() { info "$1"; }
+print_success() { log "$1"; }
+print_error() { error "$1"; }
 
 # Initialize test environment
 init_test_environment() {
@@ -114,16 +120,9 @@ run_unit_tests() {
     log "Running unit tests..."
     
     npm run test:unit -- \
-        --coverage \
-        --coverageReporters=json \
-        --coverageReporters=html \
-        --coverageReporters=text-summary \
-        --coverageDirectory="$REPORT_DIR/coverage" \
-        --testResultsProcessor=jest-junit \
-        --outputFile="$REPORT_DIR/unit/junit.xml" \
-        --detectOpenHandles \
-        --forceExit \
-        --bail=false \
+        --reporter=list,junit \
+        --workers="$PARALLEL_WORKERS" \
+        --timeout="$TEST_TIMEOUT" \
         2>&1 | tee "$REPORT_DIR/unit/console.log"
     
     local exit_code=$?
@@ -178,13 +177,9 @@ run_api_tests() {
     log "Running API integration tests..."
     
     npm run test:api -- \
-        --coverage \
-        --coverageDirectory="$REPORT_DIR/coverage" \
-        --testResultsProcessor=jest-junit \
-        --outputFile="$REPORT_DIR/api/junit.xml" \
-        --detectOpenHandles \
-        --forceExit \
-        --bail=false \
+        --reporter=list,junit \
+        --workers="$PARALLEL_WORKERS" \
+        --timeout="$TEST_TIMEOUT" \
         2>&1 | tee "$REPORT_DIR/api/console.log"
     
     local exit_code=$?
@@ -242,7 +237,6 @@ run_smoke_tests() {
     
     npm run test:smoke -- \
         --reporter=json \
-        --outputFile="$REPORT_DIR/smoke/junit.xml" \
         2>&1 | tee "$REPORT_DIR/smoke/console.log"
     
     local exit_code=$?

@@ -42,7 +42,7 @@ export default defineConfig({
   /* Browser projects for VA.gov testing */
   projects: [
     {
-      name: 'Chrome',
+      name: 'Chromium',
       use: {
         ...devices['Desktop Chrome'],
       },
