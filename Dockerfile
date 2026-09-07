@@ -1,167 +1,157 @@
-# Multi-stage Dockerfile for VA.gov Test Automation
+# ============================================================
+# Sentinel QA Automation Framework
+# Playwright + TypeScript + AI + DevSecOps
+# ============================================================
+
+# IMPORTANT:
+# Keep this version synchronized with @playwright/test
+# in package.json/package-lock.json.
+ARG PLAYWRIGHT_VERSION=1.63.0
 
 # ============================================================
-# Stage 1: Base image with Node.js
+# Stage 1: Base Playwright Environment
 # ============================================================
-FROM node:18-alpine AS base
 
-LABEL maintainer="VA.gov QA Team"
-LABEL description="VA.gov Test Automation - Full Test Suite"
+FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble AS base
+
+LABEL org.opencontainers.image.title="Sentinel QA Automation"
+LABEL org.opencontainers.image.description="AI-driven Playwright Test Automation and DevSecOps Framework"
+LABEL org.opencontainers.image.vendor="Sentinel QA"
 
 WORKDIR /app
 
-# System dependencies
-RUN apk add --no-cache \
-    curl \
-    bash \
-    git \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/cache/apk/*
+# ------------------------------------------------------------
+# Runtime environment
+# ------------------------------------------------------------
 
+ENV CI=true \
+    NODE_ENV=test \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    npm_config_update_notifier=false \
+    npm_config_fund=false
 
 # ============================================================
 # Stage 2: Dependencies
 # ============================================================
+
 FROM base AS dependencies
 
 WORKDIR /app
 
-# Copy dependency files first for Docker layer caching
-COPY package*.json ./
+# Copy dependency manifests first.
+# This maximizes Docker layer caching.
+COPY package.json package-lock.json ./
 
-# Install all dependencies, including devDependencies
-RUN npm ci
-
-# Install Playwright browsers
-RUN npx playwright install chromium
-
-# Install Playwright browser system dependencies
-RUN npx playwright install-deps chromium
-
+# Install exact dependencies from package-lock.json.
+# BuildKit cache keeps npm downloads between builds.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # ============================================================
-# Stage 3: Build
+# Stage 3: Build / TypeScript Validation
 # ============================================================
+
 FROM dependencies AS build
 
 WORKDIR /app
 
-# Copy application/test source
+# Copy application and test source.
 COPY . .
 
-# Build application if build script exists
+# TypeScript compilation if a build script exists.
+# Remove this line if the project intentionally has no build script.
 RUN npm run build:prod
 
+# ------------------------------------------------------------
 # Generate build metadata
+# ------------------------------------------------------------
+
 RUN mkdir -p dist && \
-    echo "{ \
-    \"buildTime\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \
-    \"gitCommit\": \"$(git rev-parse HEAD 2>/dev/null || echo 'unknown')\", \
-    \"nodeVersion\": \"$(node --version)\" \
-    }" > dist/build-info.json
-
+    printf '{\n' > dist/build-info.json && \
+    printf '  "buildTime": "%s",\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> dist/build-info.json && \
+    printf '  "nodeVersion": "%s",\n' "$(node --version)" >> dist/build-info.json && \
+    printf '  "playwrightVersion": "%s"\n' "${PLAYWRIGHT_VERSION}" >> dist/build-info.json && \
+    printf '}\n' >> dist/build-info.json
 
 # ============================================================
-# Stage 4: FULL TEST STAGE
+# Stage 4: Sentinel Test Runner
 # ============================================================
-FROM build AS test
+
+FROM dependencies AS test-runner
 
 WORKDIR /app
 
-# Create directories for test artifacts
-RUN mkdir -p \
-    test-results \
-    playwright-report \
-    coverage
+# Copy project source.
+COPY . .
 
 # ------------------------------------------------------------
-# Run linting
+# Create non-root Sentinel user
 # ------------------------------------------------------------
-RUN npm run lint
 
-# ------------------------------------------------------------
-# Run unit tests
-# ------------------------------------------------------------
-RUN npm run test:unit
+RUN groupadd --gid 1001 sentinel && \
+    useradd \
+        --uid 1001 \
+        --gid 1001 \
+        --create-home \
+        --shell /bin/bash \
+        sentinel && \
+    mkdir -p \
+        /app/test-results \
+        /app/playwright-report \
+        /app/coverage && \
+    chown -R sentinel:sentinel /app
 
-# ------------------------------------------------------------
-# Run ALL Playwright tests
-# ------------------------------------------------------------
-RUN npx playwright test
-
-# ------------------------------------------------------------
-# Optional API tests
-# Uncomment if your package.json contains this script
-# ------------------------------------------------------------
-# RUN npm run test:api
+USER sentinel
 
 # ------------------------------------------------------------
-# Optional integration tests
-# Uncomment if your package.json contains this script
+# Playwright directories
 # ------------------------------------------------------------
-# RUN npm run test:integration
 
+ENV HOME=/home/sentinel
 
-# ============================================================
-# Stage 5: Production image
-# ============================================================
-FROM base AS production
-
-WORKDIR /app
-
-# Copy dependencies
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=dependencies /app/package*.json ./
-
-# Copy build artifacts
-COPY --from=build /app/dist ./dist
-
-# Create non-root user
-RUN addgroup -g 1000 playwright && \
-    adduser -D -u 1000 -G playwright playwright && \
-    chown -R playwright:playwright /app
-
-USER playwright
-
-# Health check
-HEALTHCHECK --interval=30s \
-    --timeout=10s \
-    --start-period=5s \
-    --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
-
-EXPOSE 3000
+# ------------------------------------------------------------
+# Default test command
+# ------------------------------------------------------------
 
 ENTRYPOINT ["npm"]
-CMD ["start"]
 
+CMD ["test"]
 
 # ============================================================
-# Stage 6: Development image
+# Stage 5: Development Environment
 # ============================================================
+
 FROM dependencies AS development
 
 WORKDIR /app
 
-# Install development tools
-RUN npm install -g \
-    @playwright/test \
-    ts-node \
-    nodemon
-
-# Copy source
+# Copy source.
 COPY . .
 
-# Create non-root user
-RUN addgroup -g 1000 playwright && \
-    adduser -D -u 1000 -G playwright playwright && \
-    chown -R playwright:playwright /app
+# ------------------------------------------------------------
+# Create non-root development user
+# ------------------------------------------------------------
 
-USER playwright
+RUN groupadd --gid 1001 sentinel && \
+    useradd \
+        --uid 1001 \
+        --gid 1001 \
+        --create-home \
+        --shell /bin/bash \
+        sentinel && \
+    chown -R sentinel:sentinel /app
 
+USER sentinel
+
+ENV HOME=/home/sentinel \
+    NODE_ENV=development
+
+# Development ports.
+# 3000  - optional application
+# 3001  - optional secondary service
+# 9229  - Node.js debugger
 EXPOSE 3000 3001 9229
 
 ENTRYPOINT ["npm"]
+
 CMD ["run", "dev"]
