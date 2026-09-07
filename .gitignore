@@ -1,8 +1,71 @@
-
-# Playwright
+# Dependencies
 node_modules/
+.pnp/
+.pnp.js
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Playwright and test output
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+/playwright-test-list.txt
+/screenshots/
+/videos/
+/traces/
+
+# Build, coverage, and generated reports
+/dist/
+/coverage/
+/build-reports/
+/tmp/
+/temp/
+
+# Runtime logs and deployment state
+*.log
+/logs/
+/backups/
+/deployment-*.log
+/rollback-*.log
+
+# Docker and local service data
+*.pid
+docker-compose.override.yml
+
+# Package-manager and tool caches
+.npm/
+.npmrc
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Husky generated files
+.husky/_/
+
+# macOS and editor files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+.idea/
+*.swp
+*.swo
+*~
+
+# TypeScript and tooling caches
+*.tsbuildinfo
+.eslintcache
+.cache/
